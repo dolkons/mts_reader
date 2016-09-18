@@ -26,6 +26,8 @@ public class Main {
     private static final long secondsInWeek = 604800; //число секунд в неделе
     private static final long secondsInHour = 3600;
     private static final DateFormat df = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    private static final int[] means = {5, 10};
+    private static int cellCount;
 
     public static void main(String[] args) throws IOException, ParseException {
         df.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -50,12 +52,12 @@ public class Main {
                         outMtsDataFolder.mkdir();
                     }
 
-//                    for (int j=0; j < dataFilesInMtsFolder.length; j++){
-//                        String cmd = "cd " + mainDir + " && " + mtsReadScriptName + " "
-//                                + "./" + listOfFiles[i].getName() + "/" + dataFilesInMtsFolder[j].getName()
-//                                + " ./" + out + "/" + outMtsDataFolder.getName() + "/" + dataFilesInMtsFolder[j].getName().split("\\.")[0] + ".txt";
-//                        runCommand(cmd);
-//                    }
+                    for (int j=0; j < dataFilesInMtsFolder.length; j++){
+                        String cmd = "cd " + mainDir + " && " + mtsReadScriptName + " "
+                                + "./" + listOfFiles[i].getName() + "/" + dataFilesInMtsFolder[j].getName()
+                                + " ./" + out + "/" + outMtsDataFolder.getName() + "/" + dataFilesInMtsFolder[j].getName().split("\\.")[0] + ".txt";
+                        runCommand(cmd);
+                    }
                     File[] txtFilesToXls = new File(mainDir + out + "/" + outMtsDataFolder.getName()).listFiles();
                     writeToExcel(mtsDataFolder.getName(), txtFilesToXls, mainDir + out + "/xls/" + mtsDataFolder.getName() + ".xls");
                 }
@@ -75,14 +77,13 @@ public class Main {
             if (line == null) {
                 break;
             }
-            System.out.println(line);
+            //System.out.println(line);
         }
     }
 
     private static void writeToExcel(String folderName, File[] dataFiles, String outFileName) throws IOException, ParseException {
 
-        int rowPosition5Min = 1;
-        int rowPosition10Min = 1;
+        int rowPosition = 1;
 
         File outFileDirectory = new File(mainDir + out + "/xls");
         if (!outFileDirectory.exists()) {
@@ -90,69 +91,74 @@ public class Main {
         }
 
         Workbook book = new HSSFWorkbook();
-        Sheet sheet5Min = book.createSheet("5 минут");
-        Sheet sheet10Min = book.createSheet("10 минут");
-        Sheet[] sheets = {sheet5Min, sheet10Min};
+        Sheet sheet = book.createSheet(folderName);
         Row row;
-        for (Sheet sheet : sheets) {
-            row = sheet.createRow(0);
-
-            Cell date = row.createCell(0);
+        Row header = sheet.createRow(0);
+        cellCount = 0;
+        for (int meanFactor : means) {
+            Cell date = header.createCell(cellCount);
             date.setCellValue("Дата");
 
-            Cell magneticXTitle = row.createCell(1);
+            Cell magneticXTitle = header.createCell(1 + cellCount);
             magneticXTitle.setCellValue("magneticX");
 
-            Cell magneticYTitle = row.createCell(2);
+            Cell magneticYTitle = header.createCell(2 + cellCount);
             magneticYTitle.setCellValue("magneticY");
 
-            Cell magneticZTitle = row.createCell(3);
+            Cell magneticZTitle = header.createCell(3 + cellCount);
             magneticZTitle.setCellValue("magneticZ");
 
-            row.createCell(4);
+            header.createCell(4 + cellCount);
 
-            Cell telluricXTitle = row.createCell(5);
+            Cell telluricXTitle = header.createCell(5 + cellCount);
             telluricXTitle.setCellValue("telluricX");
 
-            Cell telluricYTitle = row.createCell(6);
+            Cell telluricYTitle = header.createCell(6 + cellCount);
             telluricYTitle.setCellValue("telluricY");
 
-            Cell telluricZTitle = row.createCell(7);
+            Cell telluricZTitle = header.createCell(7 + cellCount);
             telluricZTitle.setCellValue("telluricZ");
 
-            row.createCell(8);
+            header.createCell(8 + cellCount);
 
-            Cell seismicXTitle = row.createCell(9);
+            Cell seismicXTitle = header.createCell(9 + cellCount);
             seismicXTitle.setCellValue("seismicX");
 
-            Cell seismicYTitle = row.createCell(10);
+            Cell seismicYTitle = header.createCell(10 + cellCount);
             seismicYTitle.setCellValue("seismicY");
 
-            Cell seismicZTitle = row.createCell(11);
+            Cell seismicZTitle = header.createCell(11 + cellCount);
             seismicZTitle.setCellValue("seismicZ");
-        }
 
-        for (File dataFile : dataFiles) {
-            ArrayList<String> lines = new ArrayList<>();
-            InputStream fis = new FileInputStream(dataFile.getAbsolutePath());
-            InputStreamReader isr = new InputStreamReader(fis, Charset.forName("UTF-8"));
-            BufferedReader br = new BufferedReader(isr);
-            String line;
-            while ((line = br.readLine()) != null) {//цикл по каждой строке в файле
-                lines.add(line);
+            for (File dataFile : dataFiles) {
+                ArrayList<String> lines = new ArrayList<>();
+                InputStream fis = new FileInputStream(dataFile.getAbsolutePath());
+                InputStreamReader isr = new InputStreamReader(fis, Charset.forName("UTF-8"));
+                BufferedReader br = new BufferedReader(isr);
+                String line;
+                while ((line = br.readLine()) != null) {//цикл по каждой строке в файле
+                    lines.add(line);
+                }
+                String dateString = getDateFromWeekCount(folderName, dataFile.getName());
+                switch (meanFactor) {
+                    case 5: {
+                        row = sheet.createRow(rowPosition);
+                        row.createCell(cellCount).setCellValue(dateString);
+                        rowPosition = writeMean(sheet, dateString, lines, rowPosition, 15000);//усреднение по 5 минутам.
+                        break;
+                    }
+                    case 10: {
+                        row = sheet.getRow(rowPosition);
+                        row.createCell(cellCount).setCellValue(dateString);
+                        rowPosition = writeMean(sheet, dateString, lines, rowPosition, 30000);//усреднение по 10 минутам.
+                        break;
+                    }
+                }
             }
-            String date = getDateFromWeekCount(folderName, dataFile.getName());
-            row = sheet5Min.createRow(rowPosition5Min);
-            row.createCell(0).setCellValue(date);
-
-            row = sheet10Min.createRow(rowPosition10Min);
-            row.createCell(0).setCellValue(date);
-
-            rowPosition5Min = writeMean(sheet5Min, date, lines, rowPosition5Min, 15000);//усреднение по 5 минутам.
-            rowPosition10Min = writeMean(sheet10Min, date, lines, rowPosition10Min, 30000);//усреднение по 10 минутам.
+            rowPosition = 1;
+            sheet.autoSizeColumn(cellCount);
+            cellCount += 14;
         }
-        sheet5Min.autoSizeColumn(0);
-        sheet10Min.autoSizeColumn(0);
         File outFile = new File(outFileName);
 
         book.write(new FileOutputStream(outFile));
@@ -189,36 +195,39 @@ public class Main {
             seismicYSum += (Double.parseDouble(values[7]));
             seismicZSum += (Double.parseDouble(values[8]) / 139000);
             if (lineCount == meanFactor) {
-                row = sheet.createRow(totalLineCount);
+                row = sheet.getRow(totalLineCount);
+                if (row == null){
+                    row = sheet.createRow(totalLineCount);
+                }
 
                 Date date = df.parse(dateString);
                 Calendar calendar = Calendar.getInstance();
                 calendar.setTimeInMillis(date.getTime() + meanCount * getMinuteFromMeanFactor(meanFactor) * 60 * 1000);
-                row.createCell(0).setCellValue(df.format(calendar.getTime()));
+                row.createCell(cellCount).setCellValue(df.format(calendar.getTime()));
 
-                Cell magneticX = row.createCell(1);
+                Cell magneticX = row.createCell(1 + cellCount);
                 magneticX.setCellValue((magneticXSum + Double.parseDouble(values[0]) / 3727) / meanFactor);
-                Cell magneticY = row.createCell(2);
+                Cell magneticY = row.createCell(2 + cellCount);
                 magneticY.setCellValue((magneticYSum + Double.parseDouble(values[1]) / 3593) / meanFactor);
-                Cell magneticZ = row.createCell(3);
+                Cell magneticZ = row.createCell(3 + cellCount);
                 magneticZ.setCellValue((magneticZSum + Double.parseDouble(values[2]) / 3640) / meanFactor);
 
-                row.createCell(4);
+                row.createCell(4 + cellCount);
 
-                Cell telluricX = row.createCell(5);
+                Cell telluricX = row.createCell(5 + cellCount);
                 telluricX.setCellValue((telluricXSum + Double.parseDouble(values[3]) / 30003) / meanFactor);
-                Cell telluricY = row.createCell(6);
+                Cell telluricY = row.createCell(6 + cellCount);
                 telluricY.setCellValue((telluricYSum + Double.parseDouble(values[4]) / 29944) / meanFactor);
-                Cell telluricZ = row.createCell(7);
+                Cell telluricZ = row.createCell(7 + cellCount);
                 telluricZ.setCellValue((telluricZSum + Double.parseDouble(values[5]) / 30021) / meanFactor);
 
-                row.createCell(8);
+                row.createCell(8 + cellCount);
 
-                Cell seismicX = row.createCell(9);
+                Cell seismicX = row.createCell(9 + cellCount);
                 seismicX.setCellValue(seismicXSum + Double.parseDouble(values[6]));
-                Cell seismicY = row.createCell(10);
+                Cell seismicY = row.createCell(10 + cellCount);
                 seismicY.setCellValue(seismicYSum + Double.parseDouble(values[7]));
-                Cell seismicZ = row.createCell(11);
+                Cell seismicZ = row.createCell(11 + cellCount);
                 seismicZ.setCellValue((seismicZSum + Double.parseDouble(values[8]) / 139000) / meanFactor);
                 magneticXSum = 0;
                 magneticYSum = 0;
@@ -247,22 +256,21 @@ public class Main {
         long weekInUnixTime = weekCount * secondsInWeek + hourInWeek * secondsInHour + startDateUnixTime;
         Calendar calendar = Calendar.getInstance();
         calendar.setTimeInMillis(weekInUnixTime * 1000);
-        System.out.println(df.format(calendar.getTime()));
         return df.format(calendar.getTime());
     }
 
-    private static int getMinuteFromMeanFactor(int meanFactor){
+    private static int getMinuteFromMeanFactor(int meanFactor) {
         int minute;
-        switch (meanFactor){
-            case 15000:{
+        switch (meanFactor) {
+            case 15000: {
                 minute = 5;
                 break;
             }
-            case 30000:{
+            case 30000: {
                 minute = 10;
                 break;
             }
-            default:{
+            default: {
                 minute = 0;
                 break;
             }
